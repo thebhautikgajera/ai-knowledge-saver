@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CineScope - Discover movies beyond the screen</title>
+    <meta
+      name="description"
+      content="CineScope is your cinematic control room — discover movies beyond the screen, manage watchlists, and keep your viewing journey in sync."
+    />
+  </head>
+  <body>
+    <script>
+      (function () {
+        try {
+          var stored = window.localStorage.getItem('theme');
+          // If there is a stored preference, use it; otherwise default to dark.
+          var theme =
+            stored === 'light' || stored === 'dark'
+              ? stored
+              : 'dark';
+          var html = document.documentElement;
+          html.classList.remove('light', 'dark');
+          html.classList.add(theme);
+        } catch (_) {
+          // fail silently; React will handle theme application
+        }
+      })();
+    </script>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
