@@ -57,7 +57,7 @@ export const enqueueMetadataEnrichment = async (
       extensionMetadata,
     },
     {
-      jobId: `item-${itemId}`,
+      jobId: `item:${itemId}`,
     }
   );
 };

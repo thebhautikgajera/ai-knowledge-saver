@@ -45,98 +45,45 @@ const ksGetFavicon = () => {
 };
 
 const ksDetectPlatform = (url) => {
-  const lower = (url || "").toLowerCase();
+  const lowerUrl = (url || '').toLowerCase();
 
-  if (lower.includes("twitter.com") || lower.includes("x.com/status")) {
-    return "twitter";
+  if (lowerUrl.includes('twitter.com') || lowerUrl.includes('x.com')) {
+    return 'twitter';
+  }
+  if (lowerUrl.includes('youtube.com') || lowerUrl.includes('youtu.be')) {
+    return 'youtube';
+  }
+  if (lowerUrl.includes('linkedin.com')) {
+    return 'linkedin';
   }
 
-  if (lower.includes("youtube.com/watch") || lower.includes("youtu.be")) {
-    return "youtube";
-  }
-
-  if (lower.includes("linkedin.com")) {
-    return "linkedin";
-  }
-
-  if (lower.includes("pinterest.com")) {
-    return "pinterest";
-  }
-
-  if (lower.includes("instagram.com")) {
-    return "instagram";
-  }
-
-  return "website";
+  return 'website';
 };
-
-function waitForTweet(timeout = 4000) {
-  return new Promise((resolve) => {
-    const start = Date.now();
-
-    const check = () => {
-      const tweet = document.querySelector('[data-testid="tweetText"]');
-
-      if (tweet) {
-        resolve(true);
-        return;
-      }
-
-      if (Date.now() - start > timeout) {
-        resolve(false);
-        return;
-      }
-
-      requestAnimationFrame(check);
-    };
-
-    check();
-  });
-}
 
 // ---------- Platform-specific helpers ----------
 
 const ksExtractTwitter = () => {
   try {
-    const article = document.querySelector("article");
+    const article = document.querySelector('article');
     if (!article) return {};
 
-    let tweetText = "";
+    const textEl = article.querySelector('[data-testid="tweetText"]');
+    const timeEl = article.querySelector('time');
+    const profileImg = article.querySelector('img[src*="profile_images"]');
+    const usernameEl =
+      article.querySelector('a[role="link"][href*="/status/"] span') ||
+      article.querySelector('div[dir="ltr"] span');
 
-    const tweetContainer =
-      article.querySelector('[data-testid="tweetText"]') ||
-      article.querySelector('div[lang]');
-
-    if (tweetContainer) {
-      tweetText = tweetContainer.innerText.trim();
-    }
-
-    const timestamp =
-      article.querySelector("time")?.getAttribute("datetime") || "";
-
-    const profileImage =
-      article.querySelector('img[src*="profile_images"]')?.src || "";
-
-    let username = "";
-
-    const spans = [...article.querySelectorAll("span")];
-
-    const handle = spans.find((el) => {
-      const text = el.innerText.trim();
-      return text.startsWith("@") && text.length > 1;
-    });
-
-    if (handle) {
-      username = handle.innerText.replace("@", "").trim();
-    }
+    const content = textEl?.innerText?.trim() || '';
+    const timestamp = timeEl?.getAttribute('datetime') || '';
+    const authorImage = profileImg?.src || '';
+    const author = usernameEl?.innerText?.trim() || '';
 
     return {
-      platform: "X (Formerly Twitter)",
-      title: tweetText,
-      description: tweetText,
-      content: tweetText,
-      author: username,
-      authorImage: profileImage,
+      platform: 'twitter',
+      content,
+      author,
+      authorImage,
       timestamp,
     };
   } catch {
@@ -145,133 +92,102 @@ const ksExtractTwitter = () => {
 };
 
 const ksExtractYouTube = () => {
-  const title =
-    document.querySelector("h1.ytd-watch-metadata")?.innerText ||
-    ksGetMetaContent(["meta[property='og:title']"]);
+  const metaTitle = ksGetMetaContent([
+    'meta[property="og:title"]',
+    'meta[name="title"]',
+  ]);
+  const metaDescription = ksGetMetaContent([
+    'meta[property="og:description"]',
+    'meta[name="description"]',
+  ]);
+  const ogImage = ksGetMetaContent([
+    'meta[property="og:image"]',
+    'meta[property="og:image:url"]',
+  ]);
 
-  const description =
-    document.querySelector("#description-inline-expander")?.innerText ||
-    ksGetMetaContent(["meta[property='og:description']"]);
+  let channelName = '';
+  try {
+    const channelEl =
+      document.querySelector('#channel-name a') ||
+      document.querySelector('.ytd-channel-name a') ||
+      document.querySelector('meta[itemprop="channelId"]');
 
-  const thumbnail =
-    ksGetMetaContent(["meta[property='og:image']"]) || "";
+    if (channelEl) {
+      channelName =
+        channelEl.textContent?.trim() || channelEl.getAttribute('content') || '';
+    }
+  } catch {
+    // ignore
+  }
 
-  const channel =
-    document.querySelector("#channel-name a")?.innerText ||
-    document.querySelector("ytd-channel-name a")?.innerText ||
-    "";
+  let thumbnail = ogImage;
+  try {
+    const urlObj = new URL(window.location.href);
+    let videoId = urlObj.searchParams.get('v');
 
-  const channelImage =
-    document.querySelector("#channel-name img")?.src ||
-    document.querySelector("#owner img")?.src ||
-    document.querySelector("ytd-channel-name img")?.src ||
-    "";
+    if (!videoId && urlObj.hostname.includes('youtu.be')) {
+      videoId = urlObj.pathname.replace('/', '') || null;
+    }
+
+    if (videoId) {
+      if (!thumbnail || thumbnail.includes('yt_1200.png')) {
+        thumbnail = `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`;
+      }
+    }
+  } catch {
+    // ignore
+  }
 
   return {
-    platform: "youtube",
-    title,
-    description,
+    platform: 'youtube',
+    title: metaTitle,
+    description: metaDescription,
     image: thumbnail,
-    author: channel,
-    authorImage: channelImage,
+    author: channelName,
   };
 };
 
 const ksExtractLinkedIn = () => {
   try {
     const article =
-      document.querySelector("article") ||
+      document.querySelector('article') ||
       document.querySelector('[data-view-name*="feed"]');
 
-    const text =
-      article?.querySelector(".break-words")?.innerText ||
-      article?.querySelector("div[dir='ltr']")?.innerText ||
-      "";
+    const textEl =
+      article?.querySelector('[data-test-id="feed-detail"]') ||
+      article?.querySelector('div[dir="ltr"]') ||
+      article?.querySelector('span.break-words');
 
-    const author =
-      article?.querySelector("span[dir='ltr']")?.innerText || "";
+    const authorEl =
+      article?.querySelector('a[href*="/in/"]') ||
+      article?.querySelector('span[dir="ltr"]');
 
     const profileImg =
-      article?.querySelector("img[src*='profile-displayphoto']")?.src || "";
+      article?.querySelector('img[alt*="profile"]') ||
+      article?.querySelector('img[src*="profile-displayphoto"]');
 
-    const time =
-      article?.querySelector("time")?.getAttribute("datetime") || "";
+    const timeEl =
+      article?.querySelector('time') ||
+      article?.querySelector('span[datetime]');
 
-    const image =
-      article?.querySelector("img[data-test-reduced-motion-media-img]")?.src ||
-      "";
+    const previewImg =
+      article?.querySelector('img[data-test-reduced-motion-media-img]') ||
+      article?.querySelector('img[loading="lazy"]');
 
-    return {
-      platform: "linkedin",
-      content: text,
-      description: text,
-      author,
-      authorImage: profileImg,
-      timestamp: time,
-      image,
-      title: author ? `LinkedIn post by ${author}` : "LinkedIn Post",
-    };
-  } catch {
-    return {};
-  }
-};
-
-const ksExtractPinterest = () => {
-  try {
-    const title =
-      ksGetMetaContent(["meta[property='og:title']"]) ||
-      document.title ||
-      "";
-
-    const description =
-      ksGetMetaContent(["meta[property='og:description']"]) || "";
-
-    const image =
-      ksGetMetaContent(["meta[property='og:image']"]) ||
-      document.querySelector("img[src*='pinimg']")?.src ||
-      "";
-
-    const author =
-      document.querySelector('a[href*="/"] span')?.innerText || "";
+    const content = textEl?.innerText?.trim() || '';
+    const author = authorEl?.innerText?.trim() || '';
+    const authorImage = profileImg?.src || '';
+    const timestamp =
+      timeEl?.getAttribute('datetime') || timeEl?.innerText?.trim() || '';
+    const image = previewImg?.src || '';
 
     return {
-      platform: "pinterest",
-      title,
-      description,
-      image,
+      platform: 'linkedin',
+      content,
       author,
-    };
-  } catch {
-    return {};
-  }
-};
-
-const ksExtractInstagram = () => {
-  try {
-    const title =
-      ksGetMetaContent(["meta[property='og:title']"]) ||
-      document.title ||
-      "";
-
-    const description =
-      ksGetMetaContent(["meta[property='og:description']"]) || "";
-
-    const image =
-      ksGetMetaContent(["meta[property='og:image']"]) || "";
-
-    let author = "";
-
-    const match = title.match(/@([a-zA-Z0-9._]+)/);
-    if (match) {
-      author = match[1];
-    }
-
-    return {
-      platform: "instagram",
-      title,
-      description,
+      authorImage,
+      timestamp,
       image,
-      author,
     };
   } catch {
     return {};
@@ -316,8 +232,6 @@ const extractPageMetadata = () => {
     source: 'extension_dom',
     platform,
     url,
-    domain: location.hostname,
-    savedAt: new Date().toISOString(),
     title,
     description,
     content: '',
@@ -329,21 +243,12 @@ const extractPageMetadata = () => {
   };
 
   let platformData = {};
-
-  if (platform === "twitter") {
+  if (platform === 'twitter') {
     platformData = ksExtractTwitter();
-  }
-  else if (platform === "youtube") {
+  } else if (platform === 'youtube') {
     platformData = ksExtractYouTube();
-  }
-  else if (platform === "linkedin") {
+  } else if (platform === 'linkedin') {
     platformData = ksExtractLinkedIn();
-  }
-  else if (platform === "pinterest") {
-    platformData = ksExtractPinterest();
-  }
-  else if (platform === "instagram") {
-    platformData = ksExtractInstagram();
   }
 
   // Fallback for generic websites – basic image selection if still missing
@@ -380,29 +285,24 @@ const extractPageMetadata = () => {
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type !== 'GET_PAGE_METADATA') return;
 
-  (async () => {
+  // Small delay for SPA websites (Twitter/X, YouTube, LinkedIn)
+  setTimeout(() => {
     try {
-      // IMPORTANT: wait for tweet DOM to load
-      await waitForTweet();
-
       const metadata = extractPageMetadata();
-
-      console.log("[AI Knowledge Saver] Extracted metadata:", metadata);
 
       sendResponse({
         ok: true,
         data: metadata,
       });
-
     } catch (error) {
-      console.error("[AI Knowledge Saver] Metadata extraction error:", error);
+      console.error('[AI Knowledge Saver] Metadata extraction error:', error);
 
       sendResponse({
         ok: false,
-        error: "Failed to extract page metadata",
+        error: 'Failed to extract page metadata',
       });
     }
-  })();
+  }, 500);
 
   return true;
 });
