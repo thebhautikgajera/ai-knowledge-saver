@@ -6,16 +6,20 @@ import rateLimit from 'express-rate-limit';
 import authRoutes from './routes/auth.js';
 import userRoutes from './routes/user.js';
 import itemsRoutes from './routes/items.js';
+import saveRoutes from './routes/save.js';
 import { createApiLimiter } from './middleware/rateLimiter.js';
 
 const app = express();
 
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN;
+const EXTENSION_ORIGIN = process.env.EXTENSION_ORIGIN;
 
-// CORS configuration (strict origin)
+// CORS configuration (allow dashboard + extension origins)
+const allowedOrigins = [FRONTEND_ORIGIN, EXTENSION_ORIGIN].filter(Boolean);
+
 app.use(
   cors({
-    origin: FRONTEND_ORIGIN,
+    origin: allowedOrigins.length ? allowedOrigins : FRONTEND_ORIGIN,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
@@ -51,6 +55,8 @@ app.use('/api/auth/login', loginLimiter);
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/items', itemsRoutes);
+// Dedicated extension endpoint: POST /save (session cookie auth)
+app.use('/save', saveRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

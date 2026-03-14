@@ -17,6 +17,11 @@ const itemSchema = new mongoose.Schema(
             default: '',
             trim: true,
         },
+        content: {
+            type: String,
+            default: '',
+            trim: true,
+        },
         domain: {
             type: String,
             default: '',
@@ -28,20 +33,36 @@ const itemSchema = new mongoose.Schema(
             default: '',
             trim: true,
         },
+        image: {
+            type: String,
+            default: '',
+            trim: true,
+        },
         type: {
             type: String,
             enum: ['article', 'video', 'tweet'],
             default: 'article',
             index: true,
         },
-        previewImage: {
+        platform: {
             type: String,
-            default: '',
+            default: 'website',
             trim: true,
+            index: true,
         },
         extraMetadata: {
             type: mongoose.Schema.Types.Mixed,
             default: {},
+        },
+        author: {
+            type: String,
+            default: '',
+            trim: true,
+        },
+        authorImage: {
+            type: String,
+            default: '',
+            trim: true,
         },
         userId: {
             type: mongoose.Schema.Types.ObjectId,
@@ -53,6 +74,15 @@ const itemSchema = new mongoose.Schema(
             type: Date,
             default: Date.now,
             index: true,
+        },
+        updatedAt: {
+            type: Date,
+            default: Date.now,
+        },
+        metadataSource: {
+            type: String,
+            default: 'extension_dom',
+            trim: true,
         },
     },
     {

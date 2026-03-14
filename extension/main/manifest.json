@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "AI Knowledge Saver",
   "description": "Quickly save the current page (articles, tweets, videos) to the AI Knowledge Saver backend.",
-  "version": "1.1.0",
+  "version": "2.0.0",
   "action": {
     "default_popup": "popup.html",
     "default_title": "Save to AI Knowledge Saver"
@@ -19,7 +19,8 @@
     "notifications"
   ],
   "host_permissions": [
-    "http://localhost:4000/*"
+    "http://localhost:4000/*",
+    "https://api.yoursite.com/*"
   ],
   "content_scripts": [
     {

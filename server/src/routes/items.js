@@ -4,10 +4,10 @@ import { requireAuth } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// Protect all item routes
+// Protect all item routes with JWT Authorization header (SPA dashboard)
 router.use(requireAuth);
 
-// POST /api/items - create a new saved item
+// Helper for type inference
 const inferTypeFromUrl = (rawUrl) => {
   if (!rawUrl) return 'article';
 
@@ -34,6 +34,7 @@ const inferTypeFromUrl = (rawUrl) => {
   return 'article';
 };
 
+// POST /api/items - create a new saved item (used by SPA / API clients)
 router.post('/', async (req, res, next) => {
   try {
     const {
@@ -133,9 +134,15 @@ router.post('/', async (req, res, next) => {
       domain: resolvedDomain,
       favicon: resolvedFavicon,
       type: resolvedType,
-      previewImage: resolvedPreviewImage,
+      image: resolvedPreviewImage,
+      platform: inferTypeFromUrl(url) === 'tweet' ? 'twitter' : inferTypeFromUrl(url) === 'video' ? 'youtube' : 'website',
+      content: '',
+      author: '',
+      authorImage: '',
       extraMetadata: extraMetadata && typeof extraMetadata === 'object' ? extraMetadata : {},
       userId: req.auth.userId,
+      metadataSource: 'api_client',
+      updatedAt: new Date(),
     });
 
     return res.status(201).json({

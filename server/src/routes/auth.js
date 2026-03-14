@@ -1,34 +1,23 @@
 import express from 'express';
 import bcrypt from 'bcrypt';
-import {
-    User
-} from '../models/User.js';
+import { User } from '../models/User.js';
 import {
     signAccessToken,
     signRefreshToken,
-    verifyRefreshToken
+    verifyRefreshToken,
 } from '../utils/jwt.js';
-import {
-    createAuthLimiter
-} from '../middleware/rateLimiter.js';
+import { createAuthLimiter } from '../middleware/rateLimiter.js';
 import {
     getCache,
     setCache,
     deleteCache,
-    isRedisReady
+    isRedisReady,
 } from '../utils/redis.js';
-import {
-    blacklistAccessToken
-} from '../utils/tokenBlacklist.js';
-import {
-    sendMail
-} from '../utils/mailer.js';
-import {
-    generateEmailVerificationOTPTemplate
-} from '../utils/otpTemplates.js';
-import {
-    generateOtp
-} from '../utils/otp.js';
+import { blacklistAccessToken } from '../utils/tokenBlacklist.js';
+import { sendMail } from '../utils/mailer.js';
+import { generateEmailVerificationOTPTemplate } from '../utils/otpTemplates.js';
+import { generateOtp } from '../utils/otp.js';
+import { createSession, destroySession } from '../utils/sessionStore.js';
 
 const router = express.Router();
 
@@ -357,7 +346,7 @@ router.post('/login', async (req, res, next) => {
             const refreshToken = await signRefreshToken(payload);
             console.log(`[PERF] jwtSign=${Date.now() - signStart}ms`);
 
-            // 4) Set refresh token cookie (fast)
+            // 4) Set refresh token cookie (fast, for SPA token refresh)
             res.cookie('refreshToken', refreshToken, {
                 httpOnly: true,
                 secure: process.env.NODE_ENV === 'production',
@@ -365,7 +354,16 @@ router.post('/login', async (req, res, next) => {
                 maxAge: parseInt(process.env.REFRESH_TOKEN_EXPIRY_DAYS) * 24 * 60 * 60 * 1000,
             });
 
-            // 5) Update lastLogin & reset counters ASYNC — do NOT await (fire-and-forget)
+            // 5) Create opaque session cookie for extension + dashboard
+            const sessionId = await createSession(userId);
+            res.cookie('session', sessionId, {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+                maxAge: parseInt(process.env.REFRESH_TOKEN_EXPIRY_DAYS) * 24 * 60 * 60 * 1000,
+            });
+
+            // 6) Update lastLogin & reset counters ASYNC — do NOT await (fire-and-forget)
             (async () => {
                 try {
                     await User.updateOne({
@@ -558,6 +556,17 @@ router.post('/logout', async (req, res, next) => {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
             sameSite: 'lax',
+        });
+
+        // 6) Clear opaque session cookie and destroy session if present
+        const sessionId = req.cookies?.session;
+        if (sessionId) {
+            await destroySession(sessionId);
+        }
+        res.clearCookie('session', {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
         });
 
         // Always return success – from the client's perspective,

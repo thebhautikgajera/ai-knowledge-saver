@@ -1,22 +1,11 @@
 // background.js (service worker)
-// Handles context menu "Save to Knowledge Saver" and saving pages in the background.
+// Handles context menu "Save to Knowledge Saver" and saving pages using
+// cookie-based sessions (no manual access tokens).
 
-const TOKEN_KEY = 'aiKnowledgeSaverAccessToken';
 const API_BASE_URL = 'http://localhost:4000';
-const ITEMS_ENDPOINT = '/api/items';
+const SAVE_ENDPOINT = '/save';
 
 const KS_NOTIFICATION_ID = 'ai-knowledge-saver-notification';
-
-const ksGetStoredToken = () =>
-  new Promise((resolve, reject) => {
-    chrome.storage.local.get([TOKEN_KEY], (result) => {
-      if (chrome.runtime.lastError) {
-        reject(chrome.runtime.lastError);
-        return;
-      }
-      resolve(result[TOKEN_KEY] || null);
-    });
-  });
 
 const ksShowNotification = (message, type = 'info') => {
   const iconUrl =
@@ -26,7 +15,6 @@ const ksShowNotification = (message, type = 'info') => {
       ? 'icons/error-128.png'
       : 'icons/info-128.png';
 
-  // Fallback to default icon if custom icons are not present
   chrome.notifications.create(KS_NOTIFICATION_ID, {
     type: 'basic',
     iconUrl,
@@ -70,51 +58,62 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   }
 
   try {
-    const token = await ksGetStoredToken();
-    if (!token) {
-      ksShowNotification('Token not set in extension popup.', 'error');
-      return;
-    }
-
     const pageUrl = info.pageUrl || tab?.url;
     const pageTitle = tab?.title || 'Untitled Page';
     const metadata = await ksRequestPageMetadata(tab?.id ?? null);
 
-    // Fallback domain if content script couldn't determine it
-    let domain = '';
+    // Fallback platform detection based on URL if content script didn't set it
+    let platform = metadata?.platform || 'website';
     try {
-      if (pageUrl) {
-        const parsed = new URL(pageUrl);
-        domain = parsed.hostname.replace(/^www\./i, '');
+      if (!metadata?.platform && pageUrl) {
+        const lower = pageUrl.toLowerCase();
+        if (lower.includes('twitter.com') || lower.includes('x.com')) {
+          platform = 'twitter';
+        } else if (
+          lower.includes('youtube.com') ||
+          lower.includes('youtu.be')
+        ) {
+          platform = 'youtube';
+        } else if (lower.includes('linkedin.com')) {
+          platform = 'linkedin';
+        } else {
+          platform = 'website';
+        }
       }
     } catch {
-      domain = '';
+      // ignore
     }
 
-    const payload = {
-      title: metadata?.title || pageTitle,
+    const extensionMetadata = metadata || {
+      source: 'extension_dom',
       url: pageUrl,
-      description: metadata?.description ?? '',
-      domain: metadata?.domain || domain,
-      favicon: metadata?.favicon ?? '',
-      previewImage: metadata?.previewImage ?? '',
-      type: metadata?.type || undefined,
-      extraMetadata: metadata?.extraMetadata ?? {},
+      title: pageTitle,
+      platform,
     };
 
-    // Debug log to help verify what is being sent to the backend
-    console.log('[AI Knowledge Saver][background] Sending payload:', payload);
+    console.log(
+      '[AI Knowledge Saver][background] Sending extension metadata:',
+      extensionMetadata
+    );
 
-    const response = await fetch(`${API_BASE_URL}${ITEMS_ENDPOINT}`, {
+    const response = await fetch(`${API_BASE_URL}${SAVE_ENDPOINT}`, {
       method: 'POST',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ extensionMetadata }),
     });
 
     if (!response.ok) {
+      if (response.status === 401) {
+        ksShowNotification(
+          'Please login to the Knowledge Saver dashboard first.',
+          'error'
+        );
+        return;
+      }
+
       ksShowNotification('Failed to save page.', 'error');
       return;
     }
