@@ -18,6 +18,14 @@ router.get('/status', (req, res) => {
   });
 });
 
+/**
+ * Check if platform requires full metadata extraction
+ * Only Reddit, YouTube, Pinterest, and Twitter need full metadata
+ */
+const isSpecialPlatform = (platform) => {
+  return ['reddit', 'youtube', 'pinterest', 'twitter'].includes(platform);
+};
+
 const inferTypeFromUrl = (rawUrl) => {
   if (!rawUrl) return 'article';
 
@@ -78,8 +86,37 @@ router.post('/', async (req, res, next) => {
       resolvedDomain = '';
     }
 
-    const resolvedType = inferTypeFromUrl(url);
+    // Infer type from URL or use extension-provided type
+    const resolvedType = extensionMetadata.type || inferTypeFromUrl(url);
 
+    // For non-special platforms, only store title and required fields
+    if (!isSpecialPlatform(platform)) {
+      const item = await Item.create({
+        title: title.trim(),
+        url: url.trim(),
+        description: '', // Empty for non-special platforms
+        content: '', // Empty for non-special platforms
+        domain: resolvedDomain,
+        favicon: '', // Empty for non-special platforms
+        image: '', // Empty for non-special platforms
+        type: resolvedType,
+        platform,
+        author: '', // Empty for non-special platforms
+        authorImage: '', // Empty for non-special platforms
+        extraMetadata: {},
+        userId: req.auth.userId,
+        metadataSource: extensionMetadata.source || 'extension_dom',
+        updatedAt: new Date(),
+      });
+
+      // Skip metadata enrichment for non-special platforms
+      return res.status(201).json({
+        ok: true,
+        data: item,
+      });
+    }
+
+    // For special platforms (Reddit, YouTube, Pinterest, Twitter), extract full metadata
     let resolvedDescription =
       typeof incomingDescription === 'string'
         ? incomingDescription.trim()

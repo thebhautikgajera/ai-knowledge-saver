@@ -12,6 +12,18 @@ const typeTabs = [
   { id: 'tweet', label: 'Tweets', apiType: 'tweet' },
 ];
 
+// Platform display configuration
+const platformConfig = {
+  twitter: { label: 'Twitter', color: 'bg-blue-500/10 text-blue-400 border-blue-600/40', icon: '𝕏' },
+  youtube: { label: 'YouTube', color: 'bg-red-500/10 text-red-400 border-red-600/40', icon: '▶' },
+  instagram: { label: 'Instagram', color: 'bg-pink-500/10 text-pink-400 border-pink-600/40', icon: '📷' },
+  pinterest: { label: 'Pinterest', color: 'bg-red-500/10 text-red-400 border-red-600/40', icon: '📌' },
+  reddit: { label: 'Reddit', color: 'bg-orange-500/10 text-orange-400 border-orange-600/40', icon: '🔴' },
+  medium: { label: 'Medium', color: 'bg-green-500/10 text-green-400 border-green-600/40', icon: 'M' },
+  linkedin: { label: 'LinkedIn', color: 'bg-blue-500/10 text-blue-400 border-blue-600/40', icon: 'in' },
+  website: { label: 'Website', color: 'bg-slate-500/10 text-slate-400 border-slate-600/40', icon: '🌐' },
+};
+
 const Dashboard = () => {
   const { user, logout } = useAuth();
   const [items, setItems] = useState([]);
@@ -198,53 +210,65 @@ const Dashboard = () => {
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {items.map((item) => {
-              let previewSrc = '';
-              if (item.type === 'tweet') {
-                // For tweets, only show a real tweet image (no favicon fallback)
-                if (typeof item.previewImage === 'string' && item.previewImage) {
-                  previewSrc = item.previewImage;
-                }
-              } else {
-                // For other types, fall back to favicon if no preview image
-                previewSrc =
-                  (typeof item.previewImage === 'string' && item.previewImage) ||
-                  (typeof item.favicon === 'string' && item.favicon) ||
-                  '';
-              }
-
-              const hasPreviewImage = !!previewSrc;
-              const hasFavicon =
-                typeof item.favicon === 'string' && item.favicon;
+              // Use new 'image' field, fallback to old 'previewImage' for backwards compatibility
+              const imageSrc = item.image || item.previewImage || '';
+              const hasImage = !!imageSrc;
+              const hasFavicon = typeof item.favicon === 'string' && item.favicon;
+              const platform = item.platform || 'website';
+              const platformInfo = platformConfig[platform] || platformConfig.website;
+              const hasAuthor = item.author && item.author.trim();
+              const hasAuthorImage = item.authorImage && item.authorImage.trim();
 
               return (
                 <article
                   key={item._id}
-                  className="group flex flex-col overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/70 shadow-sm hover:border-emerald-500/60 hover:shadow-emerald-500/10 transition-colors"
+                  className="group flex flex-col overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/70 shadow-sm hover:border-emerald-500/60 hover:shadow-emerald-500/10 transition-all duration-200"
                 >
-                  {hasPreviewImage && (
-                    <div className="relative h-32 w-full overflow-hidden bg-slate-900/80">
+                  {hasImage && (
+                    <div className="relative h-40 w-full overflow-hidden bg-slate-900/80">
                       <img
-                        src={previewSrc}
+                        src={imageSrc}
                         alt={item.title}
-                        className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.03]"
+                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.05]"
                         loading="lazy"
+                        onError={(e) => {
+                          // Hide broken images
+                          e.target.style.display = 'none';
+                        }}
                       />
+                      {/* Platform badge overlay */}
+                      <div className="absolute top-2 right-2">
+                        <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium ${platformInfo.color}`}>
+                          <span className="text-xs">{platformInfo.icon}</span>
+                          <span>{platformInfo.label}</span>
+                        </span>
+                      </div>
                     </div>
                   )}
 
                   <div className="flex flex-1 flex-col p-4">
-                    <div className="mb-2 flex items-center gap-2 text-[11px] text-slate-400">
+                    {/* Metadata row */}
+                    <div className="mb-2 flex items-center gap-2 flex-wrap text-[11px] text-slate-400">
                       {hasFavicon && (
                         <img
                           src={item.favicon}
                           alt={item.domain || 'Site icon'}
-                          className="h-4 w-4 rounded-sm border border-slate-800 bg-slate-900 object-contain"
+                          className="h-4 w-4 rounded-sm border border-slate-800 bg-slate-900 object-none object-center"
                           loading="lazy"
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                          }}
                         />
+                      )}
+                      {!hasImage && (
+                        <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium ${platformInfo.color}`}>
+                          <span>{platformInfo.icon}</span>
+                          <span>{platformInfo.label}</span>
+                        </span>
                       )}
                       {item.domain && (
                         <span className="rounded-full border border-slate-700 bg-slate-900/80 px-2 py-0.5 text-[10px] uppercase tracking-wide">
-                          {item.domain}
+                          {item.domain.replace(/^www\./, '')}
                         </span>
                       )}
                       {item.type && (
@@ -254,16 +278,39 @@ const Dashboard = () => {
                       )}
                     </div>
 
+                    {/* Author info */}
+                    {hasAuthor && (
+                      <div className="mb-2 flex items-center gap-2">
+                        {hasAuthorImage && (
+                          <img
+                            src={item.authorImage}
+                            alt={item.author}
+                            className="h-5 w-5 rounded-full border border-slate-700 object-cover object-center"
+                            loading="lazy"
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                            }}
+                          />
+                        )}
+                        <span className="text-xs text-slate-400">
+                          {item.author}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Title */}
                     <h2 className="text-sm font-semibold mb-1 line-clamp-2 group-hover:text-emerald-400 transition-colors">
                       {item.title}
                     </h2>
 
-                    {item.description && (
-                      <p className="mt-1 text-xs text-slate-400 line-clamp-3">
-                        {item.description}
+                    {/* Content preview (for tweets, Reddit posts, etc.) */}
+                    {item.content && item.content.trim() && (
+                      <p className="mt-2 text-xs text-slate-500 line-clamp-2 italic">
+                        "{item.content.substring(0, 100)}{item.content.length > 100 ? '...' : ''}"
                       </p>
                     )}
 
+                    {/* Actions */}
                     <div className="mt-3 flex items-center gap-2">
                       <a
                         href={item.url}
@@ -282,11 +329,24 @@ const Dashboard = () => {
                       </button>
                     </div>
 
-                    <div className="mt-2 text-[11px] text-slate-500">
-                      Saved on{' '}
-                      {item.createdAt
-                        ? new Date(item.createdAt).toLocaleDateString()
-                        : '—'}
+                    {/* Footer */}
+                    <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500">
+                      <span>
+                        Saved {item.createdAt
+                          ? new Date(item.createdAt).toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric',
+                            })
+                          : '—'}
+                      </span>
+                      {item.metadataSource && (
+                        <span className="text-[10px] text-slate-600">
+                          {item.metadataSource === 'extension_dom' && '⚡'}
+                          {item.metadataSource === 'server_scraper' && '🔍'}
+                          {item.metadataSource === 'headless_browser' && '🤖'}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </article>

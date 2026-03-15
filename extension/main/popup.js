@@ -79,11 +79,27 @@ async function saveCurrentPage() {
       );
     });
 
-    const extensionMetadata = metadata || {
+    // Validate metadata has required fields before using it
+    const isValidMetadata = metadata && 
+                           typeof metadata === 'object' && 
+                           metadata.url && 
+                           metadata.url.trim() !== '' &&
+                           metadata.title && 
+                           metadata.title.trim() !== '';
+
+    const extensionMetadata = isValidMetadata ? metadata : {
       source: 'extension_dom',
-      url: activeTab.url,
+      url: activeTab.url || window.location?.href || '',
       title: activeTab.title || 'Untitled Page',
     };
+
+    // Final safety check: ensure required fields are present
+    if (!extensionMetadata.url || extensionMetadata.url.trim() === '') {
+      extensionMetadata.url = activeTab.url || window.location?.href || '';
+    }
+    if (!extensionMetadata.title || extensionMetadata.title.trim() === '') {
+      extensionMetadata.title = activeTab.title || extensionMetadata.url || 'Untitled Page';
+    }
 
     console.log(
       '[AI Knowledge Saver][popup] Sending extension metadata:',
